@@ -70,7 +70,7 @@ function translate(reviewKo: string) {
   if (/[가-힣]/.test(translated)) {
     translated = `${translated} [Untranslated fragments retained for human review]`;
   }
-  return translated.replace(/\s+/g, " ").trim();
+  return translated.replace(/([.!?])\1+/g, "$1").replace(/\s+/g, " ").trim();
 }
 
 function detectProcedure(input: WorkflowInput) {
@@ -105,8 +105,11 @@ export function runWorkflow(input: WorkflowInput): WorkflowResult {
   });
 
   const normalized = clean(input.clinicRaw);
-  const canonicalName = clinicAliases[normalized] ?? input.clinicRaw.trim();
-  const clinicConfidence = clinicAliases[normalized] ? 0.98 : 0.55;
+  const resolvedClinic = clinicAliases[normalized];
+  const canonicalName = resolvedClinic ?? input.clinicRaw.trim();
+  const clinicConfidence = resolvedClinic ? 0.98 : 0.55;
+  const clinicHash = createHash("sha256").update(normalized).digest("hex").slice(0, 8);
+  const clinicSlug = resolvedClinic ? slugify(canonicalName) : `unresolved-clinic-${clinicHash}`;
   trace.push({
     agent: "02 · Resolver",
     purpose: "Resolve clinic and procedure aliases to stable catalog entities",
@@ -123,7 +126,7 @@ export function runWorkflow(input: WorkflowInput): WorkflowResult {
   if (procedure === "Unclassified procedure") flags.push("Procedure not resolved");
   else signals.push("Procedure resolved to controlled vocabulary");
   const trustScore = Math.max(0, Math.min(100, 90 - flags.length * 18));
-  const status = flags.some((flag) => /clinic|translation|procedure/i.test(flag)) ? "human_review" : "publish";
+  const status = flags.length > 0 ? "human_review" : "publish";
 
   trace.push({
     agent: "03 · Trust Gate",
@@ -138,7 +141,7 @@ export function runWorkflow(input: WorkflowInput): WorkflowResult {
     review: {
       sourceUrl: input.sourceUrl,
       sourceHash,
-      clinic: { canonicalName, slug: slugify(canonicalName), confidence: clinicConfidence },
+      clinic: { canonicalName, slug: clinicSlug, confidence: clinicConfidence },
       procedure,
       surgeon: input.surgeonHint?.trim() || null,
       rating,
