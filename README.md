@@ -2,6 +2,8 @@
 
 An inspectable, three-agent workflow for turning a Korean clinic review into a publication-ready English record without hiding uncertainty.
 
+**Live prototype:** <https://gangnam-beauty-guide-workflow.vercel.app/>
+
 ## Agent chain
 
 1. **Linguist** translates supported phrases, extracts procedure/rating claims, retains a source fingerprint, and flags untranslated fragments instead of guessing.
